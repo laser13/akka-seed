@@ -1,6 +1,8 @@
 package ru.pavlenov
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props, Terminated}
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, PoisonPill, Props, Terminated}
+import akka.dispatch.{BoundedPriorityMailbox, PriorityGenerator}
+import com.typesafe.config.Config
 import ru.pavlenov.Parent.{Create, Stop}
 
 import scala.collection.mutable
@@ -64,7 +66,7 @@ class Parent extends ActorWithLogging {
   }
 
   private def create(name: String) = {
-    val child = context watch context.actorOf(Props[Child], name)
+    val child = context watch context.actorOf(Props[Child].withMailbox("custom-mailbox"), name)
     children += name → child
   }
 
@@ -143,3 +145,10 @@ trait ActorWithLogging extends Actor with ActorLogging{
   }
 
 }
+
+class CustomMailbox(settings: ActorSystem.Settings, config: Config) extends BoundedPriorityMailbox(
+  PriorityGenerator {
+    case Child.Run => 100
+    case PoisonPill => 1
+  }, capacity = 1, pushTimeOut = 0 millis)
+
